@@ -17,15 +17,6 @@ Arquivo único em HTML, CSS e JavaScript puro (sem frameworks, sem build), com [
 
 Como toda a lógica roda no navegador de quem acessa (o próprio JavaScript da página faz a chamada à API), basta abrir o arquivo ou hospedar em qualquer serviço de páginas estáticas — não precisa de servidor.
 
-## Como rodar
-
-Basta abrir `index.html` num navegador com internet. Para hospedar publicamente (GitHub Pages, por exemplo), veja a seção abaixo.
-
-## Publicar no GitHub Pages
-
-1. Suba o conteúdo desta pasta para um repositório no GitHub.
-2. Vá em **Settings → Pages**, escolha a branch `main` e a pasta raiz (`/`), e salve.
-3. Depois de 1–2 minutos, o link (`seuusuario.github.io/nome-do-repo`) já mostra o painel funcionando com dados reais.
 
 ## API utilizada
 
