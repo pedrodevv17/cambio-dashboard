@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Painel de Câmbio — cotações e conversor em tempo real</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --case: #14171c;
+    --panel: #1c2129;
+    --panel-raised: #232a33;
+    --seam: #0d1013;
+    --line: #313a44;
+    --ink: #ece7da;
+    --ink-dim: #9aa3ac;
+    --ink-faint: #5f6a74;
+    --flap: #f0c869;
+    --up: #5cb88a;
+    --down: #d9695f;
+    --font-flap: 'Space Mono', 'Courier New', monospace;
+    --font-body: 'Work Sans', system-ui, sans-serif;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-sizing: border-box;
+  }
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --case: #eceae4; --panel: #ffffff; --panel-raised: #f5f3ee;
+      --seam: #d9d5cb; --line: #ddd8cd; --ink: #1c1f22; --ink-dim: #5a5f63; --ink-faint: #8b9095;
+    }
+  }
+  :root[data-theme="light"] {
+    --case: #eceae4; --panel: #ffffff; --panel-raised: #f5f3ee;
+    --seam: #d9d5cb; --line: #ddd8cd; --ink: #1c1f22; --ink-dim: #5a5f63; --ink-faint: #8b9095;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; background: var(--case); color: var(--ink); font-family: var(--font-body);
+    line-height: 1.5; -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+  header.top { padding: 28px 0 8px; }
+  .top-row { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  header.top h1 { font-family: var(--font-body); font-weight: 600; font-size: 1.15rem; margin: 0; }
+  header.top p { color: var(--ink-faint); margin: 4px 0 0; font-size: 0.85rem; }
+  .theme-toggle {
+    background: var(--panel-raised); border: 1px solid var(--line); color: var(--ink-dim);
+    border-radius: 4px; padding: 6px 14px; font-size: 0.78rem; cursor: pointer; font-family: var(--font-body);
+  }
+  .theme-toggle:hover { color: var(--ink); }
+
+  /* ---------- converter (hero) ---------- */
+  .converter { padding: 28px 0 8px; }
+  .converter-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 26px 26px 22px; position: relative; overflow: hidden;
+  }
+  .converter-card::after {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--seam);
+  }
+  .converter-card h2 { font-size: 1.05rem; margin: 0 0 18px; font-weight: 600; }
+  .converter-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 0.72rem; color: var(--ink-faint); }
+  .field input, .field select {
+    background: var(--panel-raised); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 4px; padding: 10px 12px; font-family: var(--font-flap); font-size: 0.95rem;
+  }
+  .field input { width: 150px; }
+  .field select { min-width: 150px; cursor: pointer; }
+  .swap-btn {
+    background: var(--panel-raised); border: 1px solid var(--line); color: var(--ink-dim);
+    border-radius: 4px; width: 38px; height: 38px; cursor: pointer; font-size: 1rem; align-self: flex-end;
+    margin-bottom: 1px;
+  }
+  .swap-btn:hover { color: var(--ink); border-color: var(--ink-faint); }
+  .converter-result {
+    margin-top: 22px; padding-top: 18px;
+  }
+  .converter-result .value {
+    font-family: var(--font-flap); font-weight: 700; color: var(--flap);
+    font-size: clamp(2rem, 7vw, 3rem); line-height: 1;
+  }
+  .converter-result .rate {
+    color: var(--ink-faint); font-size: 0.82rem; margin-top: 8px; font-family: var(--font-flap);
+  }
+
+  /* ---------- majors strip ---------- */
+  .majors { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0 8px; }
+  @media (max-width: 640px) { .majors { grid-template-columns: 1fr; } }
+  .major-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 16px 18px; position: relative; overflow: hidden;
+  }
+  .major-card::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--seam); }
+  .major-card .pair { font-family: var(--font-flap); font-size: 0.78rem; color: var(--ink-dim); margin-bottom: 6px; }
+  .major-card .value { font-family: var(--font-flap); font-weight: 700; font-size: 1.5rem; color: var(--flap); }
+  .major-card .delta { font-family: var(--font-flap); font-size: 0.78rem; margin-top: 4px; }
+  .major-card .delta.up { color: var(--up); }
+  .major-card .delta.down { color: var(--down); }
+
+  /* ---------- quotes table ---------- */
+  section.quotes { padding: 40px 0 8px; }
+  section.quotes h2, section.history h2 { font-size: 1.1rem; margin: 0 0 4px; font-weight: 600; }
+  section.quotes p.desc, section.history p.desc { color: var(--ink-faint); font-size: 0.85rem; margin: 0 0 18px; }
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 620px; }
+  thead th {
+    text-align: left; font-weight: 600; font-size: 0.7rem; color: var(--ink-faint);
+    background: var(--panel-raised); padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  tbody td { padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel); white-space: nowrap; font-family: var(--font-flap); }
+  tbody td.name { font-family: var(--font-body); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover td { background: var(--panel-raised); }
+  td.up { color: var(--up); }
+  td.down { color: var(--down); }
+
+  /* ---------- history ---------- */
+  section.history { padding: 40px 0 60px; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; align-items: center; }
+  select {
+    background: var(--panel-raised); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 4px; padding: 8px 12px; font-family: var(--font-body); font-size: 0.85rem; cursor: pointer;
+  }
+  .range-chips { display: flex; gap: 6px; }
+  .range-chip {
+    background: var(--panel-raised); border: 1px solid var(--line); color: var(--ink-dim);
+    border-radius: 4px; padding: 7px 12px; font-size: 0.8rem; cursor: pointer; font-family: var(--font-flap);
+  }
+  .range-chip.active { border-color: var(--flap); color: var(--flap); }
+  .chart-card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 20px; }
+  .chart-wrap { position: relative; height: 300px; }
+
+  .state-msg { font-family: var(--font-body); color: var(--ink-faint); font-size: 0.88rem; padding: 24px; text-align: left; }
+  .state-msg button {
+    margin-top: 10px; background: var(--panel-raised); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 4px; padding: 7px 14px; font-size: 0.82rem; cursor: pointer; font-family: var(--font-body);
+  }
+
+  footer { border-top: 1px solid var(--line); padding: 24px 0 40px; color: var(--ink-faint); font-size: 0.78rem; }
+  footer a { color: var(--ink-dim); }
+
+  @media (max-width: 560px) { .wrap { padding: 0 16px; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-row">
+    <div>
+      <h1>Painel de Câmbio</h1>
+      <p>Cotações e conversor em tempo real, direto do mercado.</p>
+    </div>
+    <button class="theme-toggle" id="themeToggle" type="button">Alternar tema</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="converter">
+    <div class="converter-card">
+      <h2>Conversor de moedas</h2>
+      <div class="converter-row">
+        <div class="field">
+          <label for="inpAmount">Quantidade</label>
+          <input type="number" id="inpAmount" value="1" min="0" step="any">
+        </div>
+        <div class="field">
+          <label for="selFrom">De</label>
+          <select id="selFrom"></select>
+        </div>
+        <button class="swap-btn" id="btnSwap" type="button" title="Inverter">⇄</button>
+        <div class="field">
+          <label for="selTo">Para</label>
+          <select id="selTo"></select>
+        </div>
+      </div>
+      <div class="converter-result" id="converterResult">
+        <div class="state-msg">Carregando cotações...</div>
+      </div>
+    </div>
+
+    <div class="majors" id="majorsGrid"></div>
+  </section>
+
+  <section class="quotes">
+    <h2>Cotações de hoje</h2>
+    <p class="desc">Compra, venda, mínima e máxima do dia para cada moeda frente ao Real.</p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Moeda</th><th>Compra</th><th>Venda</th><th>Mínima</th><th>Máxima</th><th>Variação</th></tr>
+        </thead>
+        <tbody id="quotesTable"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="history">
+    <h2>Histórico</h2>
+    <p class="desc">Escolha uma moeda e um período para ver a variação do valor de compra frente ao real.</p>
+    <div class="controls">
+      <select id="selPair"></select>
+      <div class="range-chips" id="rangeChips">
+        <button class="range-chip" data-days="7">7D</button>
+        <button class="range-chip active" data-days="30">30D</button>
+        <button class="range-chip" data-days="90">90D</button>
+        <button class="range-chip" data-days="180">180D</button>
+      </div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-wrap"><canvas id="chartHistory"></canvas></div>
+    </div>
+  </section>
+
+  <footer>
+    <p>Dados fornecidos pela <a href="https://docs.awesomeapi.com.br/api-de-moedas" target="_blank" rel="noopener">AwesomeAPI</a>, gratuita e sem necessidade de chave de acesso. Projeto de portfólio, sem fins comerciais.</p>
+  </footer>
+</div>
+
+<script>
+// ---------------------------------------------------------------
+// CONFIGURAÇÃO
+// ---------------------------------------------------------------
+// Moedas buscadas na API, todas cotadas contra o Real (BRL)
+const CURRENCIES = [
+  { code: 'USD', label: 'Dólar americano' },
+  { code: 'EUR', label: 'Euro' },
+  { code: 'GBP', label: 'Libra esterlina' },
+  { code: 'CAD', label: 'Dólar canadense' },
+  { code: 'AUD', label: 'Dólar australiano' },
+  { code: 'CHF', label: 'Franco suíço' },
+  { code: 'JPY', label: 'Iene japonês' },
+  { code: 'ARS', label: 'Peso argentino' },
+  { code: 'BTC', label: 'Bitcoin' }
+];
+const MAJOR_CODES = ['USD', 'EUR', 'GBP']; // moedas em destaque
+const API_BASE = 'https://economia.awesomeapi.com.br';
+
+let quotesData = {};       // ex: { USD: {bid, ask, high, low, pctChange, ...}, ... }
+let rates = { BRL: 1 };    // BRL por unidade de cada moeda, usado pelo conversor
+
+function fmtNum(value, decimals) {
+  const n = Number(value);
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+function decimalsFor(code) {
+  return code === 'BTC' ? 0 : 4;
+}
+
+// ---------------------------------------------------------------
+// BUSCA DAS COTAÇÕES ATUAIS
+// ---------------------------------------------------------------
+async function fetchQuotes() {
+  const codes = CURRENCIES.map(c => `${c.code}-BRL`).join(',');
+  const res = await fetch(`${API_BASE}/json/last/${codes}`);
+  if (!res.ok) throw new Error('Falha ao buscar cotações');
+  const data = await res.json();
+
+  quotesData = {};
+  rates = { BRL: 1 };
+  CURRENCIES.forEach(c => {
+    const q = data[`${c.code}BRL`];
+    if (q) {
+      quotesData[c.code] = q;
+      rates[c.code] = Number(q.bid);
+    }
+  });
+  return quotesData;
+}
+
+function renderMajors() {
+  const grid = document.getElementById('majorsGrid');
+  grid.innerHTML = MAJOR_CODES.map(code => {
+    const q = quotesData[code];
+    const info = CURRENCIES.find(c => c.code === code);
+    if (!q) return '';
+    const pct = Number(q.pctChange);
+    const isUp = pct >= 0;
+    return `
+      <div class="major-card">
+        <div class="pair">${code} / BRL — ${info.label}</div>
+        <div class="value">R$ ${fmtNum(q.bid, decimalsFor(code))}</div>
+        <div class="delta ${isUp ? 'up' : 'down'}">${isUp ? '▲' : '▼'} ${fmtNum(Math.abs(pct), 2)}%</div>
+      </div>`;
+  }).join('');
+}
+
+function renderTable() {
+  const tbody = document.getElementById('quotesTable');
+  tbody.innerHTML = CURRENCIES.map(c => {
+    const q = quotesData[c.code];
+    if (!q) return '';
+    const pct = Number(q.pctChange);
+    const isUp = pct >= 0;
+    const d = decimalsFor(c.code);
+    return `
+      <tr data-code="${c.code}">
+        <td class="name">${c.code} — ${c.label}</td>
+        <td>R$ ${fmtNum(q.bid, d)}</td>
+        <td>R$ ${fmtNum(q.ask, d)}</td>
+        <td>R$ ${fmtNum(q.low, d)}</td>
+        <td>R$ ${fmtNum(q.high, d)}</td>
+        <td class="${isUp ? 'up' : 'down'}">${isUp ? '▲' : '▼'} ${fmtNum(Math.abs(pct), 2)}%</td>
+      </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach(row => {
+    row.addEventListener('click', () => {
+      document.getElementById('selPair').value = row.dataset.code;
+      renderHistory();
+      document.querySelector('section.history').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+}
+
+function renderConverter() {
+  const amount = Number(document.getElementById('inpAmount').value) || 0;
+  const from = document.getElementById('selFrom').value;
+  const to = document.getElementById('selTo').value;
+  const resultBox = document.getElementById('converterResult');
+
+  if (!rates[from] || !rates[to]) {
+    resultBox.innerHTML = '<div class="state-msg">Cotação indisponível para essa moeda no momento.</div>';
+    return;
+  }
+
+  const result = amount * (rates[from] / rates[to]);
+  const oneUnit = rates[from] / rates[to];
+
+  resultBox.innerHTML = `
+    <div class="value">${fmtNum(result, to === 'BTC' ? 8 : 2)} ${to}</div>
+    <div class="rate">1 ${from} = ${fmtNum(oneUnit, to === 'BTC' ? 8 : 4)} ${to}</div>
+  `;
+}
+
+async function loadQuotes() {
+  try {
+    await fetchQuotes();
+    renderMajors();
+    renderTable();
+    renderConverter();
+  } catch (err) {
+    document.getElementById('converterResult').innerHTML = `
+      <div class="state-msg">
+        Não foi possível carregar as cotações agora. Isso pode acontecer se a AwesomeAPI estiver
+        temporariamente fora do ar, ou se esta página estiver rodando sem acesso à internet.
+        <div><button onclick="loadQuotes()">Tentar de novo</button></div>
+      </div>`;
+  }
+}
+
+// ---------------------------------------------------------------
+// HISTÓRICO
+// ---------------------------------------------------------------
+let historyChart = null;
+let currentRangeDays = 30;
+
+async function fetchHistory(code, days) {
+  const res = await fetch(`${API_BASE}/json/daily/${code}-BRL/${days}`);
+  if (!res.ok) throw new Error('Falha ao buscar histórico');
+  const data = await res.json();
+  return data.reverse(); // a API retorna do mais recente pro mais antigo
+}
+
+async function renderHistory() {
+  const code = document.getElementById('selPair').value;
+  const info = CURRENCIES.find(c => c.code === code);
+  const chartWrap = document.querySelector('#chartHistory').parentElement;
+
+  try {
+    const history = await fetchHistory(code, currentRangeDays);
+    const labels = history.map(h => {
+      const d = new Date(Number(h.timestamp) * 1000);
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    });
+    const values = history.map(h => Number(h.bid));
+
+    const styles = getComputedStyle(document.documentElement);
+    const flapColor = styles.getPropertyValue('--flap').trim();
+    const inkFaint = styles.getPropertyValue('--ink-faint').trim();
+    const line = styles.getPropertyValue('--line').trim();
+    const d = decimalsFor(code);
+
+    if (historyChart) historyChart.destroy();
+    historyChart = new Chart(document.getElementById('chartHistory'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: `${code} / BRL`,
+          data: values,
+          borderColor: flapColor,
+          backgroundColor: flapColor,
+          tension: 0.2,
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => `R$ ${fmtNum(ctx.parsed.y, d)}` } }
+        },
+        scales: {
+          x: { ticks: { color: inkFaint, font: { family: "'Space Mono', monospace", size: 10 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, grid: { color: line } },
+          y: { ticks: { color: inkFaint, font: { family: "'Space Mono', monospace", size: 10 }, callback: (v) => 'R$ ' + v.toFixed(d > 2 ? 2 : d) }, grid: { color: line } }
+        }
+      }
+    });
+  } catch (err) {
+    chartWrap.innerHTML = `
+      <div class="state-msg">
+        Não foi possível carregar o histórico dessa moeda agora.
+        <div><button onclick="renderHistory()">Tentar de novo</button></div>
+      </div>`;
+  }
+}
+
+// ---------------------------------------------------------------
+// SELECTS, CHIPS, TEMA, INIT
+// ---------------------------------------------------------------
+function populateSelects() {
+  const currencyOptions = [{ code: 'BRL', label: 'Real brasileiro' }, ...CURRENCIES]
+    .map(c => `<option value="${c.code}">${c.code} — ${c.label}</option>`).join('');
+
+  const selFrom = document.getElementById('selFrom');
+  const selTo = document.getElementById('selTo');
+  selFrom.innerHTML = currencyOptions;
+  selTo.innerHTML = currencyOptions;
+  selFrom.value = 'USD';
+  selTo.value = 'BRL';
+
+  selFrom.addEventListener('change', renderConverter);
+  selTo.addEventListener('change', renderConverter);
+  document.getElementById('inpAmount').addEventListener('input', renderConverter);
+  document.getElementById('btnSwap').addEventListener('click', () => {
+    const a = selFrom.value;
+    selFrom.value = selTo.value;
+    selTo.value = a;
+    renderConverter();
+  });
+
+  const selPair = document.getElementById('selPair');
+  selPair.innerHTML = CURRENCIES.map(c => `<option value="${c.code}">${c.code} — ${c.label}</option>`).join('');
+  selPair.addEventListener('change', renderHistory);
+}
+
+function setupRangeChips() {
+  const chips = document.querySelectorAll('.range-chip');
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      chips.forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      currentRangeDays = Number(chip.dataset.days);
+      renderHistory();
+    });
+  });
+}
+
+function setupTheme() {
+  const btn = document.getElementById('themeToggle');
+  let saved = null;
+  try { saved = localStorage.getItem('cambio-theme'); } catch (e) {}
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+  btn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') ||
+      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('cambio-theme', next); } catch (e) {}
+    renderHistory();
+  });
+}
+
+populateSelects();
+setupRangeChips();
+setupTheme();
+loadQuotes();
+renderHistory();
+
+// Atualiza as cotações a cada 2 minutos
+setInterval(loadQuotes, 2 * 60 * 1000);
+</script>
+</body>
+</html>
